@@ -1,5 +1,10 @@
-FROM php:8.5.12-apache
+FROM php:8.5.13-apache
 RUN a2enmod rewrite && a2enmod headers
+
+# Silences "Could not reliably determine the server's fully qualified domain name"
+RUN echo 'ServerName localhost' > /etc/apache2/conf-available/servername.conf && \
+    a2enconf servername
+
 RUN apt-get update && apt-get install -y \
     vim \
     git \
@@ -11,8 +16,10 @@ RUN apt-get update && apt-get install -y \
     libfreetype6-dev \
     libjpeg62-turbo-dev \
     libpng-dev \
+    libwebp-dev \
     libicu-dev \
-    sendmail
+    sendmail \
+    && rm -rf /var/lib/apt/lists/*
 
 # composer
 RUN curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer
@@ -22,8 +29,8 @@ RUN echo "sendmail_path=/usr/sbin/sendmail -t -i" >> /usr/local/etc/php/conf.d/s
 RUN sed -i '/#!\/bin\/sh/aservice sendmail restart' /usr/local/bin/docker-php-entrypoint
 RUN sed -i '/#!\/bin\/sh/aecho "$(hostname -i)\t$(hostname) $(hostname).localhost" >> /etc/hosts' /usr/local/bin/docker-php-entrypoint
 
-# GD
-RUN docker-php-ext-configure gd --with-freetype --with-jpeg && \
+# GD (with WebP)
+RUN docker-php-ext-configure gd --with-freetype --with-jpeg --with-webp && \
     docker-php-ext-install gd
 
 # php database
@@ -34,6 +41,6 @@ RUN docker-php-ext-install pdo_mysql && \
     docker-php-ext-install intl
 
 # php libs
-RUN docker-php-ext-install zip
-
-RUN rm -rf /var/lib/apt/lists/*
+# exif - photo orientation from phones; bcmath - arbitrary precision math (e.g. google/photos-library)
+# OPcache is compiled into PHP 8.5, so it is not installed as an extension.
+RUN docker-php-ext-install zip exif bcmath
